@@ -1,0 +1,8 @@
+/tmp/tmpwzg56zdu/dolfin_subdomain_db4f485d0a7f7cdb82622cd9cb8f9be6.cpp: In member function ‘virtual bool dolfin::dolfin_subdomain_db4f485d0a7f7cdb82622cd9cb8f9be6::inside(Eigen::Ref<const Eigen::Matrix<double, -1, 1> >, bool) const’:
+/tmp/tmpwzg56zdu/dolfin_subdomain_db4f485d0a7f7cdb82622cd9cb8f9be6.cpp:63:29: error: ‘lx’ was not declared in this scope
+          return near(x[1], -lx) || near(x[1], lx);
+                             ^~
+/tmp/tmpwzg56zdu/dolfin_subdomain_db4f485d0a7f7cdb82622cd9cb8f9be6.cpp:63:29: note: suggested alternative: ‘x’
+          return near(x[1], -lx) || near(x[1], lx);
+                             ^~
+                             x
