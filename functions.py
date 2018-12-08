@@ -42,16 +42,17 @@ def deltaTBound(X):
     bound = (-sigma**2 + np.sqrt(delta) )/(U[0]**2 + U[1]**2)
     return bound
 
-def RandomWalkAdaptiveTimeStep(X0, T):
+def RandomWalkAdaptiveTimeStep(X0, T, coeff = 1):
     ''' X0: initial position
         T: time limit
+        Generate random walk using adaptive time step given by the function deltaTBound.
+        The coefficient allows to be more/less conservative wrt the given bound on dt.
     '''
     X = []
     X.append(X0)
     
     finalT = 0
     dt = 0 #initialize to 0
-    coeff = 0.8  # If we want to be more/less conservative wrt the bound
     
     # control on the iterations
     MAXITERS = 1e4
@@ -78,6 +79,44 @@ def RandomWalkAdaptiveTimeStep(X0, T):
     # if we have "walked" for at time greater than T
     return np.asarray(X), finalT
 
+
+def RandomWalkAdaptiveTimeStepWithThreshold(X0, T, threshold, coeff=1):
+    ''' X0: initial position
+        T: time limit
+        Generate random walk using adaptive time step given by the function deltaTBound.
+        The coefficient allows to be more/less conservative wrt the given bound on dt.
+        The given dt will be clipped at a maximum value given by threshold
+    '''
+    X = []
+    X.append(X0)
+    
+    finalT = 0
+    dt = 0 #initialize to 0
+    
+    # control on the iterations
+    MAXITERS = 1e4
+    iters = 0
+    
+    while(finalT <= T):
+        X0 = X0 + u(X0) * dt + sigma * np.sqrt(dt) * norm.rvs(size=2)
+        X.append(X0)
+        r = np.sqrt( X0[0]**2 + X0[1]**2 )
+        
+        dt = np.clip( coeff * deltaTBound(X0), 0, threshold)
+        finalT = finalT + dt
+
+        # if we are inside the well
+        if(r<R):
+            return np.asarray(X), finalT
+        
+        # if we are stuck in this walk
+        iters = iters + 1
+        if(iters > MAXITERS):
+            print ('MAXITERS limit reached')
+            return np.asarray(X), 0.11111
+            
+    # if we have "walked" for at time greater than T
+    return np.asarray(X), finalT
 
 def CI(mean, std, N, confidence):
     ''' Compute the confidence interval at the desired confidence level 
