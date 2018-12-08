@@ -1,6 +1,7 @@
 from parameters import *
 
 import numpy as np
+import scipy.stats as st
 from scipy.stats import norm
 import matplotlib.pyplot as plt
 
@@ -76,3 +77,13 @@ def RandomWalkAdaptiveTimeStep(X0, T):
             
     # if we have "walked" for at time greater than T
     return np.asarray(X), finalT
+
+
+def CI(mean, std, N, confidence):
+    ''' Compute the confidence interval at the desired confidence level 
+    '''
+    alfa = 1 - confidence
+    C_alfa2 = st.t.ppf(1-alfa/2,N-1)
+    lowerB = mean - C_alfa2*std/np.sqrt(N)
+    upperB = mean + C_alfa2*std/np.sqrt(N)
+    return lowerB, upperB
