@@ -4,6 +4,7 @@ import numpy as np
 import scipy.stats as st
 from scipy.stats import norm
 import matplotlib.pyplot as plt
+import time
 
 def u(X) :
     ''' Define the velocity field '''
