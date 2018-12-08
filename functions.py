@@ -35,7 +35,7 @@ def deltaTBound(X):
         X: current position
     '''
     r = np.sqrt(X[0]**2 + X[1]**2) #Current distance from the origin
-    Dmax = r - R #Maximum distance in expectation
+    Dmax = r #Maximum distance in expectation
     U = u(X) #Velocity field at this position
 
     delta = sigma**4 + (U[0]**2 + U[1]**2) * (R-r)**2
@@ -51,7 +51,7 @@ def RandomWalkAdaptiveTimeStep(X0, T):
     
     finalT = 0
     dt = 0 #initialize to 0
-    coeff = 0.7  # If we want to be more/less conservative wrt the bound
+    coeff = 0.8  # If we want to be more/less conservative wrt the bound
     
     # control on the iterations
     MAXITERS = 1e4
@@ -62,7 +62,7 @@ def RandomWalkAdaptiveTimeStep(X0, T):
         X.append(X0)
         r = np.sqrt( X0[0]**2 + X0[1]**2 )
         
-        dt = deltaTBound(X0)
+        dt = coeff * deltaTBound(X0)
         finalT = finalT + dt
 
         # if we are inside the well
@@ -73,7 +73,7 @@ def RandomWalkAdaptiveTimeStep(X0, T):
         iters = iters + 1
         if(iters > MAXITERS):
             print ('MAXITERS limit reached')
-            return np.asarray(X), 111
+            return np.asarray(X), 0.11111
             
     # if we have "walked" for at time greater than T
     return np.asarray(X), finalT
