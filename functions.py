@@ -45,29 +45,29 @@ def NaiveRandomWalk(X0, N, T):
     return np.asarray(X), finalT
 
 
-def BasicMonteCarlo(X0, walks, N, T = 1, confidence = 0.95, seed = 1, tol = 1e-6, verbose = True):
+def BasicMonteCarlo(X0, walks, N, T = 1, confidence = 0.95, seed = 1, tol = 1e-6,
+                    PDEProb = -1, verbose = 2):
     polluted = np.zeros(walks)
-
 
     start = time.time()
     for w in range(walks):
-        if (verbose and w%1000 == 0):
+        if (verbose == 2 and w%100 == 0):
             print('Current walk: ', w )
         _, currentTime = NaiveRandomWalk(X0, N, T)
         if currentTime < T - tol:
                 polluted[w] = 1
-
     end = time.time()
 
     mean = polluted.mean()
     std = np.std(polluted, ddof = 1)
     LB, UB = CI(mean, std, walks, confidence)
-    if verbose:
-        print(f'\n\n\nNumber of simulations: {walks}. Time needed = {end - start}')
-        print(f'Estimated variance: {std}')
-        print(f'The estimated probability at {X0} is: {mean} (using MC), {PDEProb} (using the PDE)')
+    if verbose >=1:
+        print(f'\nNumber of simulations: %d. Time needed = %.2f s' % (walks, end-start))
+        print(f'Estimated variance: {std}' % (std))
+        print(f'The estimated probability at {X0} is: {mean} (using MC)')
         print(f'Confidence interval: [ {mean} +- {UB-mean} ]\twith P = {confidence}%')
-    
+        if PDEProb != -1:
+            print(f'\nPDE result at {X0} is:  {PDEProb}')
     return mean, std, LB, UB
 
 
@@ -129,7 +129,8 @@ def RandomWalkAdaptiveTimeStep(X0, T = 1 , mindt = 0, maxdt = 10, coeff=1, MAXIT
 
 
 def AdaptiveTimeStepMonteCarlo(X0, walks, T = 1, confidence = 0.95, seed = 1,
-                               mindt = 0, maxdt = 10, coeff=1, tol = 1e-6, verbose = True):
+                               mindt = 0, maxdt = 10, coeff = 1, tol = 1e-6, 
+                               PDEProb = -1, verbose = 2):
     
     np.random.seed(seed)
     polluted = np.zeros(walks)
@@ -137,9 +138,10 @@ def AdaptiveTimeStepMonteCarlo(X0, walks, T = 1, confidence = 0.95, seed = 1,
 
     start = time.time()
     for w in range(walks):
-        if (verbose and w%1000 == 0):
+        if (verbose == 2 and w%100 == 0):
             print('Current walk: ', w )
-        _, currentTime = RandomWalkAdaptiveTimeStep(X0, T = T, mindt = mindt, maxdt = maxdt, coeff = coeff)
+        _, currentTime = RandomWalkAdaptiveTimeStep(X0, T = T, mindt = mindt, 
+                                                maxdt = maxdt, coeff = coeff)
         if currentTime < T - tol:
                 polluted[w] = 1
     end = time.time()
@@ -147,12 +149,14 @@ def AdaptiveTimeStepMonteCarlo(X0, walks, T = 1, confidence = 0.95, seed = 1,
     mean = polluted.mean()
     std = np.std(polluted, ddof = 1)
     LB, UB = CI(mean, std, walks, confidence)
-    if verbose:
-        print(f'\n\n\nNumber of simulations: {walks}. Time needed = {end - start}')
+    if verbose >= 1:
+        print(f'\nNumber of simulations: %d. Time needed = %.2f s' % (walks, end-start))
         print(f'Estimated variance: {std}')
-        print(f'The estimated probability at {X0} is: {mean} (using MC), {PDEProb} (using the PDE)')
+        print(f'The estimated probability at {X0} is: {mean} (using MC)')
         print(f'Confidence interval: [ {mean} +- {UB-mean} ]\twith P = {confidence}%')
-    
+        if PDEProb != -1:
+            print(f'\nPDE result at {X0} is:  {PDEProb}')
+
     return mean, std, LB, UB
 
 
