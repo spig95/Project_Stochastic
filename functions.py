@@ -6,6 +6,8 @@ from scipy.stats import norm
 import matplotlib.pyplot as plt
 import time
 
+np.set_printoptions(precision=3) #when we print arrays
+
 def u(X) :
     ''' Define the velocity field '''
     pre = q / (2*np.pi * (X[0]**2 + X[1]**2)) 
@@ -234,21 +236,22 @@ def SplittingMethod(X0, T0, dt, Ns, Rs, Y, H, stage, root, T = 1, verbose = 1):
 
         # To be sure, we initialize H and Y to 0 and we perform some dimensional
         # checks.
-        print('Checking dimensionality of H, Ns and Y.')
+        if verbose >=1:
+            print('Checking dimensionality of H, Ns and Y.')
         if(H.shape[0] != Rs.shape[0] -1):
-            print('H has wrong dimensions')
+            print('ERROR: H has wrong dimensions')
             return np.nan, np.nan
         if(Ns.shape[0] != Rs.shape[0] -1):
-            print('Ns has wrong dimensions')
+            print('ERROR: Ns has wrong dimensions')
             return np.nan, np.nan
         if(Y.shape[0] != Ns[0]):
-            print('Y has wrong dimensions')
+            print('ERROR: Y has wrong dimensions')
             return np.nan, np.nan
         # H and Y must be 0 at the beginning
         H = H*0
         Y = Y*0
 
-        if verbose == 1:
+        if verbose >= 1:
             print(f'Radiuses: {Rs}')
             print(f'Walks per stage: {Ns}')
             print(f'Timestep: {dt}')
@@ -310,6 +313,9 @@ def SplittingMethod(X0, T0, dt, Ns, Rs, Y, H, stage, root, T = 1, verbose = 1):
 def ComputeEstimatesSplittingMethod(Y, Ns, PDEProb = -1, verbose = 1):
     ''' Compute mean, std and Confidence interval given the results of the 
     splitting method '''
+    Y = Y.astype(np.float64)
+    Ns = Ns.astype(np.float64)
+
     # Formula 2.12 in ISBN 90-365-14320
     mean = Y.sum()/Ns.prod()
 
@@ -317,9 +323,69 @@ def ComputeEstimatesSplittingMethod(Y, Ns, PDEProb = -1, verbose = 1):
     std = np.sqrt( np.std(Y, ddof = 1) / ( Ns[0] * ((Ns[1:]**2).prod()) ) )
     
     if verbose == 1:
-        print('Splitting method results.')
-        print(f'Estimated probability: {mean}')
-        print(f'Estimated variance: {std}')
+        print('Splitting method results:')
+        print(f'\tEstimated probability: {mean}')
+        print(f'\tEstimated variance: {std}')
         if PDEProb != -1:
-                print(f'\nPDE result is:  {PDEProb}')
+                print(f'PDE result is:  {PDEProb}')
     return mean, std
+
+
+def SplittingMethodBalancedGrowth(X0, dt, Rs, Ns, T = 1, verbose = 1, seed = 1):
+    if verbose >= 1:
+        print('Splitting method with balanced growth.\n')
+        print(f'Radiuses: {Rs}')
+        print(f'Timestep: {dt}')
+        fig, ax = plt.subplots(figsize = [4,4])
+        for radius in Rs[:-1]:
+            theta = np.linspace(0,2*np.pi,100)
+            ax.plot(radius*np.cos(theta),radius*np.sin(theta),'k-')
+        circle = plt.Circle((0, 0), Rs[-1], color='k')
+        ax.add_artist(circle)
+        ax.plot(X0[0],X0[1],'.', ms = 20, label='X0')
+        ax.set_title('Stages configuration.')
+        ax.legend()
+        plt.show()
+
+        print('\nPilot run with walks per stage: ', Ns)
+        print('Pilot run starts...')
+    
+    # Pilot run
+    np.random.seed(5*seed)
+    H  = np.zeros(Rs.shape[0]-1)
+    Y  = np.zeros(int(Ns[0]))
+    _, H = SplittingMethod(X0, 0, dt, Ns, Rs, Y, H, 
+                            stage = 0, root = np.nan, T = T, verbose = 0)
+    if H is np.nan:
+        return np.nan, np.nan, np.nan
+
+    if verbose >=1:
+        print('Pilot run terminated.')
+
+    # Check if the pilot run has been successful
+    if (H == 0).any():
+        print('ERROR: some stages have not been hit.')
+        print('H = ', H)
+        return np.nan, np.nan, np.nan
+
+    # Compute pi and overwerite Ns as 1/pi
+    p = np.empty(H.shape[0])
+    p[0] = H[0] / Ns[0]
+    for i in range(1, H.shape[0]):
+        p[i] = H[i] / (H[i-1] * Ns[i])
+    Ns = (np.ceil(1/p)).astype(int)
+    if (verbose >=1):
+        print(f'Pilot run results: \n\t\tH = {H}\n\t\tp_i = {p} \n\t\tN = {Ns}')
+        print('\nCalling the splitting method.')
+    
+    # Reinitialize H and Y and call the splitting method
+    H  = np.zeros(Rs.shape[0]-1)
+    Y  = np.zeros(int(Ns[0]))
+
+    np.random.seed(seed) #scipy is based on the numpy seed
+    Y, H = SplittingMethod(X0, 0, dt, Ns, Rs, Y, H, 
+                            stage = 0, root = np.nan, T = T, 
+                            verbose = (verbose >=2) * 1)
+    return Y, H, Ns
+    
+
