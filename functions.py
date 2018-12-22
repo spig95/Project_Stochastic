@@ -163,6 +163,151 @@ def AdaptiveTimeStepMonteCarlo(X0, walks, T = 1, confidence = 0.95, seed = 1,
 
 
 #############################################################
+############## POINT C   ####################################
+#############################################################
+
+
+def createVectorN(N0, NL, L):
+    """
+    N0 : number of iteration for the level 0
+    NL : number of iteration for the level L, level of interest
+    L : number of Levels
+    output : N vector of size L+1 with the Nl distributed acording to MLMC paper
+    """
+    #dtl = dt0 * M**l and N = T / dt
+    #N0/Nl = M**l
+    M = (N0/NL) ** (1/L)
+    #Nl = N0/(M**l)
+    return np.array([ round(N0 / (M**l)) for l in range(L+1)],dtype=int) 
+
+
+
+def MultilevelFunctionForLDifferentTimesSteps(X_0,N,T,L):
+    ''' 
+    Function that computes walk with different timesteps
+    X_0: initial position
+    N: vector of the number of steps
+    T: Final time
+    L : Level to which we are interested walks on L elements of X
+    
+    return : areIn, the vector of boolean values, areIn[l] = True means the walk on level l has reached the well'''
+    
+    dt = T/N
+
+    sigmaSqrtDt = sigma * np.sqrt(dt)
+
+    finalT = dt
+    areIn = np.full(len(N), False)
+
+    X = np.outer(X_0,np.ones(L+1)).T
+
+
+    for i in range(N[L]-1):
+        Norm = norm.rvs(size=2)
+        
+        for l in range(L+1):
+            if ((not areIn[l]) and (finalT[l] < T)) :
+                X[l] = X[l] + u(X[l]) * dt[l] + sigmaSqrtDt[l]* Norm
+                r = np.sqrt( X[l,0]**2 + X[l,1]**2 ) 
+                if (r < R) : areIn[l] = True
+            
+        finalT = finalT + dt
+        if(areIn.sum() == L+1):
+            break
+    
+    return areIn
+
+
+def MultilevelFunctionForLDifferentPositions(X_0,N,T,L):
+    ''' 
+    Function that computes walk with different starting positions
+    X_0: initial positions
+    N: number of steps
+    T: Final time
+    L : Level to which we are interested walks on L elements of X
+    
+    return : areIn, the vector of boolean values, areIn[l] = True means the walk on level l has reached the well
+    '''
+    dt = T/N
+    sigmaSqrtDt = sigma * np.sqrt(dt)
+    finalT = dt
+    areIn = np.full(np.shape(X_0)[0], False)
+    X = np.array(X_0)
+
+    for i in range(N-1):
+        Norm = norm.rvs(size=2)
+        
+        for l in range(L+1):
+            if (not areIn[l]) :
+                X[l] = X[l] + u(X[l]) * dt + sigmaSqrtDt* Norm
+                r = np.sqrt( X[l,0]**2 + X[l,1]**2 ) 
+                if (r < R) : areIn[l] = True
+            
+        finalT = finalT + dt
+        if(areIn.sum() == L+1):
+            break
+    
+    return areIn
+
+
+def MultiLevelMonteCarlo(L, X0, Walks, Functions, N, T = 1, confidence = 0.95, seed = 1, tol = 1e-6,
+                    PDEProb = -1, verbose = 2):
+    """
+    Runs a Multilevel Montecarlo, of L levels, starting at X0
+    Input:
+        L : is the number of levels, where L will be the level we want to estimate with 0 being the level with smallest variance
+        Walks : is a vector of size L+1, where Walks[l] is the number of walks for the level l
+        X0 is a L+1 by 2 matrix storing the starting points, X[l,:] being the starting point of the l-th level
+        Functions : the function to apply for the walks, returns a l size vector
+    Output: 
+        E : vector where E[l] is the expectation of the l-ieth level
+        VAR : vector where VAR[l] is the variance of the estimator of the l-ieth level, 
+        Var : is the variance of the MLMC estimator, 
+        Prob : is the estimator/probability computed by the MLMC  , 
+        VarNaive : is the variance that would be achieved for a naive walk
+    """
+    
+    #E stores the expectation of each level E[l] = E[Pl-P(l-1)] and E[0] = E[P0]
+    E = np.zeros(L+1)
+    VAR = np.zeros(L+1)
+    
+    #stores the polluted values, L lines
+    polluted = np.empty((L+1,Walks[0]))
+    Walks.append(0)
+    for l in range(L,0,-1):
+        if(verbose == 2) : print('Calculating level', l)
+
+        for w in range(Walks[l+1],Walks[l]):
+            areInR = Functions(X0, N, T, l)
+            polluted[:,w] = areInR 
+        
+        E[l] = np.mean(polluted[l,0:Walks[l]] - polluted[l-1,0:Walks[l]])
+        VAR[l] = np.std((polluted[l,0:Walks[l]] - polluted[l-1,0:Walks[l]]), ddof = 1)
+    
+    #runs the P0 walk
+    if(verbose == 2) : print('Calculating level 0')
+    for w in range(Walks[1],Walks[0]):
+        areInR = Functions(X0, N, T,0)
+        polluted[:,w] = areInR 
+        
+    E[0] = np.mean(polluted[0,:])
+    VAR[0] = np.std(polluted[0,:], ddof=1)
+    Prob = np.sum(E)
+    Var = np.sum(VAR/Walks[:-1])
+    VarNaive = np.std(polluted[L,0:Walks[L]], ddof=1)/Walks[L]
+    
+    if verbose >=1:
+        #print(f'\nNumber of simulations: %d. Time needed = %.2f s' % (walks, end-start))
+        print(f'The estimated probability at {X0} is: {Prob} (using MC)')
+        print('with the variance : ', Var)
+        print('Whithout the variance reduction ', VarNaive)
+        #if PDEProb != -1:
+            #print(f'\nPDE result at {X0} is:  {PDEProb}')
+            
+    return E, VAR, Var, Prob, VarNaive
+
+
+#############################################################
 ############## POINT D   ####################################
 #############################################################
 
@@ -374,9 +519,12 @@ def SplittingMethodBalancedGrowth(X0, dt, Rs, Ns, T = 1, verbose = 1, seed = 1):
     for i in range(1, H.shape[0]):
         p[i] = H[i] / (H[i-1] * Ns[i])
     Ns = (np.ceil(1/p)).astype(int)
+    Ns = Ns*3
     if (verbose >=1):
         print(f'Pilot run results: \n\t\tH = {H}\n\t\tp_i = {p} \n\t\tN = {Ns}')
         print('\nCalling the splitting method.')
+    
+   
     
     # Reinitialize H and Y and call the splitting method
     H  = np.zeros(Rs.shape[0]-1)
