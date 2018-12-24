@@ -78,21 +78,31 @@ def BasicMonteCarlo(X0, walks, N, T = 1, confidence = 0.95, seed = 1, tol = 1e-6
 #############################################################
 
 
-def deltaTBound(X):
+def deltaTBoundOrder1(X):
     ''' Computes the bound of deltaT if we want to have an expected step 
         magnitude such that with one step we don't skip the whole well
         X: current position
     '''
     r = np.sqrt(X[0]**2 + X[1]**2) #Current distance from the origin
-    Dmax = r #Maximum distance in expectation
+    
+    return (R-r)**2 / (2* sigma**2)
+
+def deltaTBoundOrder2(X):
+    ''' Computes the bound of deltaT if we want to have an expected step 
+        magnitude such that with one step we don't skip the whole well
+        X: current position
+    '''
+    r = np.sqrt(X[0]**2 + X[1]**2) #Current distance from the origin
+
     U = u(X) #Velocity field at this position
 
-    delta = sigma**4 + (U[0]**2 + U[1]**2) * (R-r)**2
-    bound = (-sigma**2 + np.sqrt(delta) )/(U[0]**2 + U[1]**2)
+    delta = sigma**4 + (U[0]**2 + U[1]**2 + 4 * sigma**4) * (R-r)**2
+    bound = (-sigma**2 + np.sqrt(delta) )/(U[0]**2 + U[1]**2 + 4*sigma**4)
     return bound
 
 
-def RandomWalkAdaptiveTimeStep(X0, T = 1 , mindt = 0, maxdt = 10, coeff=1, MAXITERS = 1e4):
+
+def RandomWalkAdaptiveTimeStep(X0, deltaT = deltaTBoundOrder1, T = 1 , mindt = 0.0001, maxdt = 0.05, coeff=0.5):
     ''' X0: initial position
         T: time limit
         Generate random walk using adaptive time step given by the function deltaTBound.
@@ -113,25 +123,19 @@ def RandomWalkAdaptiveTimeStep(X0, T = 1 , mindt = 0, maxdt = 10, coeff=1, MAXIT
         X.append(X0)
         r = np.sqrt( X0[0]**2 + X0[1]**2 )
         
-        dt = np.clip( coeff * deltaTBound(X0), mindt, maxdt)
+        dt = np.clip( coeff * deltaT(X0), mindt, maxdt)
         finalT = finalT + dt
 
         # if we are inside the well
         if(r<R):
-            return np.asarray(X), finalT
-        
-        # if we are stuck in this walk
-        iters = iters + 1
-        if(iters > MAXITERS):
-            print ('MAXITERS limit reached')
-            return np.asarray(X), 0.11111
+            return np.asarray(X), True
             
     # if we have "walked" for at time greater than T
-    return np.asarray(X), finalT
+    return np.asarray(X), False
 
 
-def AdaptiveTimeStepMonteCarlo(X0, walks, T = 1, confidence = 0.95, seed = 1,
-                               mindt = 0, maxdt = 10, coeff = 1, tol = 1e-6, 
+def AdaptiveTimeStepMonteCarlo(X0, walks, deltaT = deltaTBoundOrder1, T = 1, confidence = 0.95, seed = 1,
+                               mindt = 0.0001, maxdt = 0.05, coeff=0.5, 
                                PDEProb = -1, verbose = 2):
     
     np.random.seed(seed)
@@ -142,10 +146,9 @@ def AdaptiveTimeStepMonteCarlo(X0, walks, T = 1, confidence = 0.95, seed = 1,
     for w in range(walks):
         if (verbose == 2 and w%100 == 0):
             print('Current walk: ', w )
-        _, currentTime = RandomWalkAdaptiveTimeStep(X0, T = T, mindt = mindt, 
+        _, isIn = RandomWalkAdaptiveTimeStep(X0, deltaT = deltaT, T = T, mindt = mindt, 
                                                 maxdt = maxdt, coeff = coeff)
-        if currentTime < T - tol:
-                polluted[w] = 1
+        if isIn: polluted[w] = 1
     end = time.time()
 
     mean = polluted.mean()
@@ -206,7 +209,7 @@ def MultilevelFunctionForLDifferentTimesSteps(X_0,N,T,L):
         Norm = norm.rvs(size=2)
         
         for l in range(L+1):
-            if ((not areIn[l]) and (finalT[l] < T)) :
+            if ((not areIn[l]) and (finalT[l] <= T)) :
                 X[l] = X[l] + u(X[l]) * dt[l] + sigmaSqrtDt[l]* Norm
                 r = np.sqrt( X[l,0]**2 + X[l,1]**2 ) 
                 if (r < R) : areIn[l] = True
@@ -266,6 +269,7 @@ def MultiLevelMonteCarlo(L, X0, Walks, Functions, N, T = 1, confidence = 0.95, s
         Prob : is the estimator/probability computed by the MLMC  , 
         VarNaive : is the variance that would be achieved for a naive walk
     """
+    start = time.time()
     
     #E stores the expectation of each level E[l] = E[Pl-P(l-1)] and E[0] = E[P0]
     E = np.zeros(L+1)
@@ -296,13 +300,15 @@ def MultiLevelMonteCarlo(L, X0, Walks, Functions, N, T = 1, confidence = 0.95, s
     Var = np.sum(VAR/Walks[:-1])
     VarNaive = np.std(polluted[L,0:Walks[L]], ddof=1)/Walks[L]
     
+    end = time.time()
+    
     if verbose >=1:
-        #print(f'\nNumber of simulations: %d. Time needed = %.2f s' % (walks, end-start))
+        print(f'\nNumber of simulations: %d. Time needed = %.2f s' % (np.sum(Walks), end-start))
         print(f'The estimated probability at {X0} is: {Prob} (using MC)')
         print('with the variance : ', Var)
         print('Whithout the variance reduction ', VarNaive)
-        #if PDEProb != -1:
-            #print(f'\nPDE result at {X0} is:  {PDEProb}')
+        if PDEProb != -1:
+            print(f'\nPDE result at {X0} is:  {PDEProb}')
             
     return E, VAR, Var, Prob, VarNaive
 
