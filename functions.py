@@ -47,8 +47,27 @@ def NaiveRandomWalk(X0, N, T):
     return np.asarray(X), finalT
 
 
-def BasicMonteCarlo(X0, walks, N, T = 1, confidence = 0.95, seed = 1, tol = 1e-6,
-                    PDEProb = -1, verbose = 2):
+def BasicMonteCarlo(X0, walks, N, T = 1, confidence = 0.95, tol = 1e-6,
+                    PDEProb = -1, seed = 1, verbose = 1):
+    '''Naive MC method.
+
+    #ARGUMENTS: 
+    X0: initial position
+    walks: number of walks to simulate
+    N: number of steps per walk
+    T: final time
+    confidence: a confidence interval with this confidence level will be computed
+    tol: we consider that the walk didn't go inside the well if the time at the 
+         Nth step is smaller than T-tol. This prevents errors due to numerical
+         approximations
+    PDEProb: PDE solution value at X0. -1 if not available
+
+    #OUTPUT:
+    mean: estimated prob
+    std: estimated variance
+    LB, UB: confidence interval 
+    '''
+    np.random.seed(seed)
     polluted = np.zeros(walks)
 
     start = time.time()
@@ -70,6 +89,39 @@ def BasicMonteCarlo(X0, walks, N, T = 1, confidence = 0.95, seed = 1, tol = 1e-6
         print(f'Confidence interval: [ {mean} +- {UB-mean} ]\twith P = {confidence}%')
         if PDEProb != -1:
             print(f'\nPDE result at {X0} is:  {PDEProb}')
+    return mean, std, LB, UB
+
+
+def MCWithPilotRun(X0, walks_pilot, N, precision, T = 1, confidence = 0.95, 
+                    seed = 1, tol = 1e-6, PDEProb = -1, verbose = 2):
+
+    # pilot run
+    _, std, _, _ = BasicMonteCarlo(X0 = X0, walks = walks_pilot, N = N, T = T, confidence = confidence, tol = tol,
+                    PDEProb = PDEProb, seed = seed, verbose = (verbose >=2)*2 )
+
+    # compute the necessary walks
+    alfa = 1 - confidence
+    C_alfa2 = st.norm.ppf(1-alfa/2) # a lot of walks, norm is good approx. of t
+    walks = int( (2*C_alfa2*std/precision)**2 )
+    if verbose>=2: print('\n')
+    if verbose>=1: 
+        print('Pilot run terminated.')
+        print(f'Calling MC method with {walks} walks...\n')
+
+    # MC simulation
+    start = time.time()
+    mean, std, LB, UB = BasicMonteCarlo(X0 = X0, walks = walks, N = N, T = T, confidence = confidence, tol = tol,
+                    PDEProb = PDEProb, seed = 2*seed, verbose = (verbose >=2)*2 )
+    end = time.time()
+    
+    if verbose == 1: #if it is >1 it has already been printed
+        print(f'\nNumber of simulations: %d. Time needed = %.2f s' % (walks, end-start))
+        print(f'Estimated variance: {std}' % (std))
+        print(f'The estimated probability at {X0} is: {mean} (using MC)')
+        print(f'Confidence interval: [ {mean} +- {UB-mean} ]\twith P = {confidence}%')
+        if PDEProb != -1:
+            print(f'\nPDE result at {X0} is:  {PDEProb}')
+
     return mean, std, LB, UB
 
 
@@ -102,12 +154,14 @@ def deltaTBoundOrder2(X):
 
 
 
-def RandomWalkAdaptiveTimeStep(X0, deltaT = deltaTBoundOrder1, T = 1 , mindt = 0.0001, maxdt = 0.05, coeff=0.5):
-    ''' X0: initial position
-        T: time limit
-        Generate random walk using adaptive time step given by the function deltaTBound.
+def RandomWalkAdaptiveTimeStep(X0, deltaT = deltaTBoundOrder1, T = 1, 
+                                       mindt = 0.0001, maxdt = 0.05, coeff=0.5):
+    ''' Generate random walk using adaptive time step given by the function deltaTBound.
         The coefficient allows to be more/less conservative wrt the given bound on dt.
         The given dt will be clipped at a maximum value given by the thresholds min/max dt
+        
+        X0: initial position
+        T: time limit
     '''
     X = []
     X.append(X0)
@@ -136,7 +190,7 @@ def RandomWalkAdaptiveTimeStep(X0, deltaT = deltaTBoundOrder1, T = 1 , mindt = 0
 
 def AdaptiveTimeStepMonteCarlo(X0, walks, deltaT = deltaTBoundOrder1, T = 1, confidence = 0.95, seed = 1,
                                mindt = 0.0001, maxdt = 0.05, coeff=0.5, 
-                               PDEProb = -1, verbose = 2):
+                               PDEProb = -1, verbose = 1):
     
     np.random.seed(seed)
     polluted = np.zeros(walks)
@@ -254,7 +308,7 @@ def MultilevelFunctionForLDifferentPositions(X_0,N,T,L):
 
 
 def MultiLevelMonteCarlo(L, X0, Walks, Functions, N, T = 1, confidence = 0.95, seed = 1, tol = 1e-6,
-                    PDEProb = -1, verbose = 2):
+                    PDEProb = -1, verbose = 1):
     """
     Runs a Multilevel Montecarlo, of L levels, starting at X0
     Input:
@@ -357,7 +411,8 @@ def StageWalk_Plot(X0, R_in, R_f, T_in, dt, T=1):
 
 
 
-def SplittingMethod(X0, T0, dt, Ns, Rs, Y, H, stage, root, T = 1, verbose = 1):    
+def SplittingMethod(X0, T0, dt, Ns, Rs, Y, H, stage, root, T = 1, verbose = 1,
+                                                                  seed = 1):    
     '''Implement the splitting method. Recursive function.
     
     #ARGUMENTS:
@@ -380,10 +435,11 @@ def SplittingMethod(X0, T0, dt, Ns, Rs, Y, H, stage, root, T = 1, verbose = 1):
         allow us to update accordingly the array Y. At the very first call of the
         function, root has no meaning whatsoever.
     '''    
-    
+
     ############################################################################
     # First stage, first call of the function.
     if stage == 0:
+        np.random.seed(seed)
 
         # To be sure, we initialize H and Y to 0 and we perform some dimensional
         # checks.
@@ -422,7 +478,7 @@ def SplittingMethod(X0, T0, dt, Ns, Rs, Y, H, stage, root, T = 1, verbose = 1):
 
          # We generate Ns[0] stage walks and initialize the values of the roots
         for starting_root in range(int(Ns[stage])):
-            if verbose >=1: print('Root: ', starting_root)
+            if verbose >=2: print('Root: ', starting_root)
             X, currentTime = StageWalk(X0, Rs[stage], Rs[stage+1], T0, dt)
 
             # If we hit the next stage before T, we update the hitting counter of
@@ -461,29 +517,11 @@ def SplittingMethod(X0, T0, dt, Ns, Rs, Y, H, stage, root, T = 1, verbose = 1):
             
     return Y, H
 
-
-def ComputeEstimatesSplittingMethod(Y, Ns, PDEProb = -1, verbose = 1):
-    ''' Compute mean, std and Confidence interval given the results of the 
-    splitting method '''
-    Y = Y.astype(np.float64)
-    Ns = Ns.astype(np.float64)
-
-    # Formula 2.12 in ISBN 90-365-14320
-    mean = Y.sum()/Ns.prod()
-
-    # Formula 2.15 in ISBN 90-365-14320
-    std = np.sqrt( np.std(Y, ddof = 1) / ( Ns[0] * ((Ns[1:]**2).prod()) ) )
-    
-    if verbose == 1:
-        print('Splitting method results:')
-        print(f'\tEstimated probability: {mean}')
-        print(f'\tEstimated variance: {std}')
-        if PDEProb != -1:
-                print(f'PDE result is:  {PDEProb}')
-    return mean, std
-
-
-def SplittingMethodBalancedGrowth(X0, dt, Rs, Ns, T = 1, multiplier = 2, verbose = 1, seed = 1):
+def SplittingMethodBalancedGrowth(X0, dt, Rs, Ns, T = 1, multiplier = 2, 
+                                                         verbose = 1, seed = 1):
+    '''Runs a pilot run of the splitting method to obtain the values Ns and then
+    calls the splitting method accordingly.
+    '''
     if verbose >= 1:
         print('Splitting method with balanced growth.\n')
         print(f'Radiuses: {Rs}')
@@ -503,11 +541,11 @@ def SplittingMethodBalancedGrowth(X0, dt, Rs, Ns, T = 1, multiplier = 2, verbose
         print('Pilot run starts...')
     
     # Pilot run
-    np.random.seed(5*seed)
     H  = np.zeros(Rs.shape[0]-1)
     Y  = np.zeros(int(Ns[0]))
     _, H = SplittingMethod(X0, 0, dt, Ns, Rs, Y, H, 
-                            stage = 0, root = np.nan, T = T, verbose = 0)
+                            stage = 0, root = np.nan, T = T, verbose = 0, 
+                            seed = seed)
     if H is np.nan:
         return np.nan, np.nan, np.nan
 
@@ -516,7 +554,7 @@ def SplittingMethodBalancedGrowth(X0, dt, Rs, Ns, T = 1, multiplier = 2, verbose
 
     # Check if the pilot run has been successful
     if (H == 0).any():
-        print('ERROR: some stages have not been hit.')
+        print('\nERROR: in the pilot run some stages have not been hit.')
         print('H = ', H)
         return np.nan, np.nan, np.nan
 
@@ -531,24 +569,49 @@ def SplittingMethodBalancedGrowth(X0, dt, Rs, Ns, T = 1, multiplier = 2, verbose
         print(f'Pilot run results: \n\tH = {H}\n\tp_i = {p} \n\tN = {Ns}')
 
     if multiplier !=1:
-        if verbose:
+        if verbose >=1 :
             Ns = Ns*multiplier
             print(f'\nChanging the values multiplying by {multiplier}.')
             print(f'New N = {Ns}.')
     
-    if verbose: print('\nCalling the splitting method.')
+    if verbose >=1: print('\nCalling the splitting method.')
     
-    
-   
     
     # Reinitialize H and Y and call the splitting method
     H  = np.zeros(Rs.shape[0]-1)
     Y  = np.zeros(int(Ns[0]))
 
-    np.random.seed(seed) #scipy is based on the numpy seed
+    np.random.seed(5*seed) #scipy is based on the numpy seed
     Y, H = SplittingMethod(X0, 0, dt, Ns, Rs, Y, H, 
                             stage = 0, root = np.nan, T = T, 
-                            verbose = (verbose >=2) * 1)
+                            verbose = (verbose >=2) * 2)
     return Y, H, Ns
     
 
+def ComputeEstimatesSplittingMethod(Y, Ns, PDEProb = -1, verbose = 1):
+    ''' Compute mean, std and Confidence interval given the results of the 
+    splitting method '''
+    Y = Y.astype(np.float64)
+    Ns = Ns.astype(np.float64)
+
+    # Formula 2.12 in ISBN 90-365-14320
+    mean = Y.sum()/Ns.prod()
+
+    # Formula 2.15 in ISBN 90-365-14320
+    std = np.sqrt( np.std(Y, ddof = 1) / ( Ns[0] * ((Ns[1:]**2).prod()) ) )
+
+    # 95% confidence interval
+    # NOTE: N here is always high, hence we can take the quantile of the normal
+    # distribution 
+    C_alfa2 = st.norm.ppf(0.975)
+    LB = mean - C_alfa2*std
+    UB = mean + C_alfa2*std
+    
+    if verbose >= 1:
+        print(f'Estimated variance: {std}')
+        print(f'The estimated probability is: {mean} (using MC)')
+        print(f'Confidence interval: [ {mean} +- {UB-mean} ]\twith P = 95%')
+        if PDEProb != -1:
+            print(f'\nPDE result is:  {PDEProb}')
+    
+    return mean, std
