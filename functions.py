@@ -91,6 +91,7 @@ def BasicMonteCarlo(X0, walks, N, T = 1, confidence = 0.95, tol = 1e-6,
                 polluted[w] = 1
     end = time.time()
 
+    # Results
     mean = polluted.mean()
     std = np.std(polluted, ddof = 1)
     LB, UB = CI(mean, std, walks, confidence)
@@ -526,7 +527,7 @@ def SplittingMethod(X0, T0, dt, Ns, Rs, Y, H, stage, root, T = 1, verbose = 1,
     ############################################################################
     # Intermediate stage, same as before, but we don't have to change the root
     # when we call the next instance of SplittingMethod, since the roots are 
-    # defined only in the firs stage        
+    # defined only in the first stage        
     elif stage != Ns.shape[0]-1:
         for i in range(int(Ns[stage])):
             X, currentTime = StageWalk(X0, Rs[stage], Rs[stage+1], T0, dt)
@@ -558,7 +559,7 @@ def SplittingMethodBalancedGrowth(X0, dt, Rs, Ns, T = 1, multiplier = 2,
         print('Splitting method with balanced growth.\n')
         print(f'Radiuses: {Rs}')
         print(f'Timestep: {dt}')
-        fig, ax = plt.subplots(figsize = [4,4])
+        _, ax = plt.subplots(figsize = [4,4])
         for radius in Rs[:-1]:
             theta = np.linspace(0,2*np.pi,100)
             ax.plot(radius*np.cos(theta),radius*np.sin(theta),'k-')
