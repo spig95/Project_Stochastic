@@ -22,29 +22,38 @@ def CI(mean, std, N, confidence):
     upperB = mean + C_alfa2*std/np.sqrt(N)
     return lowerB, upperB
 
-#############################################################
-############## POINT A   ####################################
-#############################################################
-
+################################################################################
+########################### POINT A ############################################
+################################################################################
 
 def NaiveRandomWalk(X0, N, T):
-    ''' X0: initial position
-        N: number of steps
-        T: Final time'''
+    ''' Simulate a random walk starting from X0. The simulation terminates if we
+    are inside the well or if T has elapsed.
+
+    #ARGUMENTS:
+    X0: initial position
+    N: number of steps
+    T: maximum time of the walk
+    
+    #OUTPUT:
+    X: np array with the positions of the walk
+    currentT: final time of the walk, less than T if the well is contaminated
+    '''
     X = []
     dt = T/N
     sigmaSqrtDt = sigma * np.sqrt(dt)
     X.append(X0)
-    finalT = dt
-    for i in range(N-1):
+    currentT = dt
+    for _ in range(N-1):
         X0 = X0 + u(X0) * dt + sigmaSqrtDt* norm.rvs(size=2)
         X.append(X0)
-        finalT = finalT + dt
+        currentT = currentT + dt
         r = np.sqrt( X0[0]**2 + X0[1]**2 )
+        # Check if we are inside the well
         if(r<R):
             break
     
-    return np.asarray(X), finalT
+    return np.asarray(X), currentT
 
 
 def BasicMonteCarlo(X0, walks, N, T = 1, confidence = 0.95, tol = 1e-6,
@@ -56,7 +65,7 @@ def BasicMonteCarlo(X0, walks, N, T = 1, confidence = 0.95, tol = 1e-6,
     walks: number of walks to simulate
     N: number of steps per walk
     T: final time
-    confidence: a confidence interval with this confidence level will be computed
+    confidence: confidence interval with this confidence level will be computed
     tol: we consider that the walk didn't go inside the well if the time at the 
          Nth step is smaller than T-tol. This prevents errors due to numerical
          approximations
@@ -67,14 +76,17 @@ def BasicMonteCarlo(X0, walks, N, T = 1, confidence = 0.95, tol = 1e-6,
     std: estimated variance
     LB, UB: confidence interval 
     '''
+    # Seed
     np.random.seed(seed)
+    # Initialize to 0 the outcomes of the walks
     polluted = np.zeros(walks)
 
     start = time.time()
     for w in range(walks):
-        if (verbose == 2 and w%100 == 0):
+        if (verbose == 2 and w % 100 == 0):
             print('Current walk: ', w )
         _, currentTime = NaiveRandomWalk(X0, N, T)
+        # Update the w-th outcome
         if currentTime < T - tol:
                 polluted[w] = 1
     end = time.time()
@@ -83,10 +95,12 @@ def BasicMonteCarlo(X0, walks, N, T = 1, confidence = 0.95, tol = 1e-6,
     std = np.std(polluted, ddof = 1)
     LB, UB = CI(mean, std, walks, confidence)
     if verbose >=1:
-        print(f'\nNumber of simulations: %d. Time needed = %.2f s' % (walks, end-start))
+        print(f'\nNumber of simulations: %d. Time needed = %.2f s' 
+                % (walks, end-start))
         print(f'Estimated variance: {std}' % (std))
         print(f'The estimated probability at {X0} is: {mean} (using MC)')
-        print(f'Confidence interval: [ {mean} +- {UB-mean} ]\twith P = {confidence}%')
+        print(f'Confidence interval: [ {mean} +- {UB-mean} ]\twith'
+               ' P = {confidence}%')
         if PDEProb != -1:
             print(f'\nPDE result at {X0} is:  {PDEProb}')
     return mean, std, LB, UB
@@ -94,12 +108,16 @@ def BasicMonteCarlo(X0, walks, N, T = 1, confidence = 0.95, tol = 1e-6,
 
 def MCWithPilotRun(X0, walks_pilot, N, precision, T = 1, confidence = 0.95, 
                     seed = 1, tol = 1e-6, PDEProb = -1, verbose = 2):
+    '''Same as the naive MC, but exploiting a pilot run with "walks_pilot" walks
+    to estimate the variance and choose a number of walks to obtain the desired
+    "precision".'''
 
-    # pilot run
-    _, std, _, _ = BasicMonteCarlo(X0 = X0, walks = walks_pilot, N = N, T = T, confidence = confidence, tol = tol,
-                    PDEProb = PDEProb, seed = seed, verbose = (verbose >=2)*2 )
+    # Pilot run with "walks_pilot" walks
+    _, std, _, _ = BasicMonteCarlo(X0 = X0, walks = walks_pilot, N = N, T = T, 
+                    confidence = confidence, tol = tol, PDEProb = PDEProb,
+                    seed = seed, verbose = (verbose >=2)*2 )
 
-    # compute the necessary walks
+    # Compute the necessary walks to obtain a CI smaller than "precision"
     alfa = 1 - confidence
     C_alfa2 = st.norm.ppf(1-alfa/2) # a lot of walks, norm is good approx. of t
     walks = int( (2*C_alfa2*std/precision)**2 )
@@ -108,26 +126,30 @@ def MCWithPilotRun(X0, walks_pilot, N, precision, T = 1, confidence = 0.95,
         print('Pilot run terminated.')
         print(f'Calling MC method with {walks} walks...\n')
 
-    # MC simulation
+    # MC simulation with the computed number of walks
     start = time.time()
-    mean, std, LB, UB = BasicMonteCarlo(X0 = X0, walks = walks, N = N, T = T, confidence = confidence, tol = tol,
-                    PDEProb = PDEProb, seed = 2*seed, verbose = (verbose >=2)*2 )
+    mean, std, LB, UB = BasicMonteCarlo(X0 = X0, walks = walks, N = N, T = T, 
+                        confidence = confidence, tol = tol, PDEProb = PDEProb, 
+                        seed = 2*seed, verbose = (verbose >=2)*2 )
     end = time.time()
     
+    # Results
     if verbose == 1: #if it is >1 it has already been printed
-        print(f'\nNumber of simulations: %d. Time needed = %.2f s' % (walks, end-start))
+        print(f'\nNumber of simulations: %d. Time needed = %.2f s' 
+              % (walks, end-start))
         print(f'Estimated variance: {std}' % (std))
         print(f'The estimated probability at {X0} is: {mean} (using MC)')
-        print(f'Confidence interval: [ {mean} +- {UB-mean} ]\twith P = {confidence}%')
+        print(f'Confidence interval: [ {mean} +- {UB-mean} ]\twith'
+               ' P = {confidence}%')
         if PDEProb != -1:
             print(f'\nPDE result at {X0} is:  {PDEProb}')
 
     return mean, std, LB, UB
 
 
-#############################################################
-############## POINT B   ####################################
-#############################################################
+################################################################################
+############################# POINT B ##########################################
+################################################################################
 
 
 def deltaTBoundOrder1(X):
@@ -184,7 +206,7 @@ def RandomWalkAdaptiveTimeStep(X0, deltaT = deltaTBoundOrder1, T = 1,
         if(r<R):
             return np.asarray(X), True
             
-    # if we have "walked" for at time greater than T
+    # If we have "walked" for at time greater than T
     return np.asarray(X), False
 
 
@@ -219,9 +241,10 @@ def AdaptiveTimeStepMonteCarlo(X0, walks, deltaT = deltaTBoundOrder1, T = 1, con
     return mean, std, LB, UB
 
 
-#############################################################
-############## POINT C   ####################################
-#############################################################
+
+################################################################################
+############################# POINT C ##########################################
+################################################################################
 
 
 def createVectorN(N0, NL, L):
@@ -357,7 +380,8 @@ def MultiLevelMonteCarlo(L, X0, Walks, Functions, N, T = 1, confidence = 0.95, s
     end = time.time()
     
     if verbose >=1:
-        print(f'\nNumber of simulations: %d. Time needed = %.2f s' % (np.sum(Walks), end-start))
+        print(f'\nNumber of simulations: %d. Time needed = %.2f s' % 
+                (np.sum(Walks), end-start))
         print(f'The estimated probability at {X0} is: {Prob} (using MC)')
         print('with the variance : ', Var)
         print('Whithout the variance reduction ', VarNaive)
@@ -367,25 +391,33 @@ def MultiLevelMonteCarlo(L, X0, Walks, Functions, N, T = 1, confidence = 0.95, s
     return E, VAR, Var, Prob, VarNaive
 
 
-#############################################################
-############## POINT D   ####################################
-#############################################################
+
+################################################################################
+############################# POINT D ##########################################
+################################################################################
 
 def StageWalk(X0, R_in, R_f, T_in, dt, T = 1):
     ''' 
-    Random walk driven by the velocity field u, starting from X0. X0 belongs to 
-    a circle of radius R_in and the walk starts at time T_in.
-    The walk ends if we are inside a circle of radius R_f (i.e in the next stage)
-    or if the time is greater than T.
+    Random walk in a stage driven by the velocity field u, starting from X0. 
+    
+    #ARGUMENTS:
+    X0: starting point
+    R_in: X0 belongs to a circle of radius R_in
+    R_f: ends if we go a circle of radius R_f (i.e in the next stage)
+    T_in: starting time of the walk
+    dt: timestep
+    T: final time, another stopping criteria for the walk
 
     #OUTPUT:
     X0: final position of the walk
     currentTime: final time reached by this walk. Greater than T if we have not
         reached the next stage R_f
     '''
+    # Initialize time and radius
     currentTime = T_in
     r = np.sqrt( X0[0]**2 + X0[1]**2 )
     
+    # Check the stopping criteria and eventually update the position
     while(r > R_f and currentTime < T):
         X0 = X0 + u(X0) * dt + sigma * np.sqrt(dt)* norm.rvs(size=2)
         currentTime = currentTime + dt
@@ -422,8 +454,8 @@ def SplittingMethod(X0, T0, dt, Ns, Rs, Y, H, stage, root, T = 1, verbose = 1,
         that are generated in case of hitting of the i-th stage.
     Rs: radiuses that defines the stages
     Y: array of length Ns[0]. The i-th element of this array counts the times 
-        that the offspring of walks generated by the i-th walk at stage 0 reaches 
-        the well. See sect. 2.4.3 of ISBN 90-365-14320 for more details.
+        that the offspring of walks generated by the i-th walk at stage 0  
+        reaches the well. See sect. 2.4.3 of ISBN 90-365-14320 for more details.
     H: this array contains one element per each stage. The i-th element counts
         the number of hittings of the walks generated on the i-th stage. Namely
         the walks that starts from a point in the circle of radius Rs[i] and 
@@ -432,8 +464,8 @@ def SplittingMethod(X0, T0, dt, Ns, Rs, Y, H, stage, root, T = 1, verbose = 1,
         When the function is called this should be 0.
     root: by root, we mean which one of the starting walks (the walks generated 
         at the stage 0) has triggered the current call of the function. This 
-        allow us to update accordingly the array Y. At the very first call of the
-        function, root has no meaning whatsoever.
+        allow us to update accordingly the array Y. At the very first call of 
+        the function, root has no meaning whatsoever.
     '''    
 
     ############################################################################
@@ -481,8 +513,8 @@ def SplittingMethod(X0, T0, dt, Ns, Rs, Y, H, stage, root, T = 1, verbose = 1,
             if verbose >=2: print('Root: ', starting_root)
             X, currentTime = StageWalk(X0, Rs[stage], Rs[stage+1], T0, dt)
 
-            # If we hit the next stage before T, we update the hitting counter of
-            # the current stage H[stage] and we call the function again, with
+            # If we hit the next stage before T, we update the hitting counter 
+            # of the current stage H[stage] and we call the function again, with
             # the correct stage number and the correct root
             if(currentTime < T):
                 H[stage] = H[stage] + 1
@@ -591,6 +623,7 @@ def SplittingMethodBalancedGrowth(X0, dt, Rs, Ns, T = 1, multiplier = 2,
 def ComputeEstimatesSplittingMethod(Y, Ns, PDEProb = -1, verbose = 1):
     ''' Compute mean, std and Confidence interval given the results of the 
     splitting method '''
+    # Convert to avoid overflows
     Y = Y.astype(np.float64)
     Ns = Ns.astype(np.float64)
 
