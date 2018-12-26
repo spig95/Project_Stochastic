@@ -422,6 +422,7 @@ def SplittingMethod(X0, T0, dt, Ns, Rs, Y, H, stage, root, T = 1, verbose = 1):
 
          # We generate Ns[0] stage walks and initialize the values of the roots
         for starting_root in range(int(Ns[stage])):
+            if verbose >=1: print('Root: ', starting_root)
             X, currentTime = StageWalk(X0, Rs[stage], Rs[stage+1], T0, dt)
 
             # If we hit the next stage before T, we update the hitting counter of
@@ -482,7 +483,7 @@ def ComputeEstimatesSplittingMethod(Y, Ns, PDEProb = -1, verbose = 1):
     return mean, std
 
 
-def SplittingMethodBalancedGrowth(X0, dt, Rs, Ns, T = 1, verbose = 1, seed = 1):
+def SplittingMethodBalancedGrowth(X0, dt, Rs, Ns, T = 1, multiplier = 2, verbose = 1, seed = 1):
     if verbose >= 1:
         print('Splitting method with balanced growth.\n')
         print(f'Radiuses: {Rs}')
@@ -527,8 +528,16 @@ def SplittingMethodBalancedGrowth(X0, dt, Rs, Ns, T = 1, verbose = 1, seed = 1):
     Ns = (np.ceil(1/p)).astype(int)
     Ns = Ns*3
     if (verbose >=1):
-        print(f'Pilot run results: \n\t\tH = {H}\n\t\tp_i = {p} \n\t\tN = {Ns}')
-        print('\nCalling the splitting method.')
+        print(f'Pilot run results: \n\tH = {H}\n\tp_i = {p} \n\tN = {Ns}')
+
+    if multiplier !=1:
+        if verbose:
+            Ns = Ns*multiplier
+            print(f'\nChanging the values multiplying by {multiplier}.')
+            print(f'New N = {Ns}.')
+    
+    if verbose: print('\nCalling the splitting method.')
+    
     
    
     
