@@ -597,7 +597,6 @@ def SplittingMethodBalancedGrowth(X0, dt, Rs, Ns, T = 1, multiplier = 2,
     for i in range(1, H.shape[0]):
         p[i] = H[i] / (H[i-1] * Ns[i])
     Ns = (np.ceil(1/p)).astype(int)
-    Ns = Ns*3
     if (verbose >=1):
         print(f'Pilot run results: \n\tH = {H}\n\tp_i = {p} \n\tN = {Ns}')
 
