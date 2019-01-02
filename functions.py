@@ -383,7 +383,7 @@ def MultiLevelMonteCarlo(L, X0, Walks, Functions, N, T = 1, confidence = 0.95, s
     if verbose >=1:
         print(f'\nNumber of simulations: %d. Time needed = %.2f s' % 
                 (np.sum(Walks), end-start))
-        print(f'The estimated probability at {X0} is: {Prob} (using MC)')
+        print(f'The estimated probability at {X0} is: {Prob} (using MLMC)')
         print('with the variance : ', Var)
         print('Whithout the variance reduction ', VarNaive)
         if PDEProb != -1:
