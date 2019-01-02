@@ -247,6 +247,88 @@ def AdaptiveTimeStepMonteCarlo(X0, walks, deltaT = deltaTBoundOrder1, T = 1, con
 ############################# POINT C ##########################################
 ################################################################################
 
+def AntitheticVar(X0, walks, N, T = 1, confidence = 0.95, tol = 1e-6,
+                    PDEProb = -1, seed = 1, verbose = 1):
+    '''Antithetic variables: instead of generating independent walks generates
+    couples of random walks, with opposite updated.
+
+    #ARGUMENTS: 
+    X0: initial position
+    walks: number of walks to simulate
+    N: number of steps per walk
+    T: final time
+    confidence: confidence interval with this confidence level will be computed
+    tol: we consider that the walk didn't go inside the well if the time at the 
+         Nth step is smaller than T-tol. This prevents errors due to numerical
+         approximations
+    PDEProb: PDE solution value at X0. -1 if not available
+
+    #OUTPUT:
+    mean: estimated prob
+    std: estimated variance
+    LB, UB: confidence interval '''
+    # Select an even number of walks
+    walks = walks + walks % 2
+    # Seed
+    np.random.seed(seed)
+    # Initialize to 0 the outcomes of the walks
+    polluted = np.zeros(walks)
+
+    #Initialize dt
+    dt = T/N
+    start = time.time()
+    for w in range(walks // 2):
+        if (verbose == 2 and w % 50 == 0):
+            print('Current walk: ', 2*w )
+        
+        # Initialize 2 random walks: X_A and X_B with "positive" and "negative"
+        # updates, respectively
+        X_A, X_B = X0, X0
+        r_A, r_B = R + 1000, R + 1000
+        finalT_A, finalT_B = dt , dt
+        
+        # Generate X_A and X_B
+        for _ in range(N-1):
+            Z = norm.rvs(size=2)
+            # Update A
+            if(r_A > R):
+                # Use PLUS Z
+                X_A = X_A + u(X_A) * dt + sigma * np.sqrt(dt) * Z 
+                finalT_A = finalT_A + dt
+                r_A = np.sqrt( X_A[0]**2 + X_A[1]**2 )
+            # Update B
+            if(r_B > R):
+                # Use MINUS Z
+                X_B = X_B + u(X_B) * dt - sigma * np.sqrt(dt) * Z 
+                finalT_B = finalT_B + dt
+                r_B = np.sqrt( X_B[0]**2 + X_B[1]**2 )
+            # if r_A and r_B are less than R, breaks.
+            elif r_A < R: break
+
+        # Update the w-th outcome
+        if finalT_A < T - tol:
+            polluted[2*w] = 1
+        # Update the w-th outcome
+        if finalT_B < T - tol:
+            polluted[2*w + 1] = 1
+    end = time.time()
+
+    # Results
+    mean = polluted.mean()
+    std = np.std(polluted, ddof = 1)
+    LB, UB = CI(mean, std, walks, confidence)
+    if verbose >=1:
+        print(f'\nNumber of simulations: %d. Time needed = %.2f s' 
+                % (walks, end-start))
+        print(f'Estimated variance: {std}' % (std))
+        print(f'The estimated probability at {X0} is: {mean} (using MC)')
+        print(f'Confidence interval: [ {mean} +- {UB-mean} ]\twith'
+               ' P = {confidence}%')
+        if PDEProb != -1:
+            print(f'\nPDE result at {X0} is:  {PDEProb}')
+    return mean, std, LB, UB
+
+
 
 def createVectorN(N0, NL, L):
     """
@@ -613,10 +695,9 @@ def SplittingMethodBalancedGrowth(X0, dt, Rs, Ns, T = 1, multiplier = 2,
     H  = np.zeros(Rs.shape[0]-1)
     Y  = np.zeros(int(Ns[0]))
 
-    np.random.seed(5*seed) #scipy is based on the numpy seed
     Y, H = SplittingMethod(X0, 0, dt, Ns, Rs, Y, H, 
                             stage = 0, root = np.nan, T = T, 
-                            verbose = (verbose >=2) * 2)
+                            verbose = (verbose >=2) * 2, seed = 5*seed)
     return Y, H, Ns
     
 
