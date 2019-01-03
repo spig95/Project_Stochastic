@@ -337,6 +337,7 @@ def createVectorN(N0, NL, L):
     L : number of Levels
     output : N vector of size L+1 with the Nl distributed acording to MLMC paper
     """
+    #creates the vector according to the distribution
     #dtl = dt0 * M**l and N = T / dt
     #N0/Nl = M**l
     M = (N0/NL) ** (1/L)
@@ -351,7 +352,7 @@ def MultilevelFunctionForLDifferentTimesSteps(X_0,N,T,L):
     X_0: initial position
     N: vector of the number of steps
     T: Final time
-    L : Level to which we are interested walks on L elements of X
+    L : Level to which we are interested, the function perfoms walks with only L time separation of N
     
     return : areIn, the vector of boolean values, areIn[l] = True means the walk on level l has reached the well'''
     
@@ -359,23 +360,25 @@ def MultilevelFunctionForLDifferentTimesSteps(X_0,N,T,L):
 
     sigmaSqrtDt = sigma * np.sqrt(dt)
 
-    finalT = dt
+    finalT = dt #finalT is a L size vector that store the time at which each level is
     areIn = np.full(len(N), False)
 
-    X = np.outer(X_0,np.ones(L+1)).T
+    X = np.outer(X_0,np.ones(L+1)).T #stores the position of each level
 
 
-    for i in range(N[L]-1):
+    for i in range(N[L]-1):#loop for the step of the walks, they are all updated at the same time (we use smallest timestep
+        #generate the random variable used for all the levels, to get correlation
         Norm = norm.rvs(size=2)
         
+        #test for each level if the position needs to be updated and if so, updates
         for l in range(L+1):
             if ((not areIn[l]) and (finalT[l] <= T)) :
                 X[l] = X[l] + u(X[l]) * dt[l] + sigmaSqrtDt[l]* Norm
                 r = np.sqrt( X[l,0]**2 + X[l,1]**2 ) 
-                if (r < R) : areIn[l] = True
+                if (r < R) : areIn[l] = True 
             
         finalT = finalT + dt
-        if(areIn.sum() == L+1):
+        if(areIn.sum() == L+1): #if all levels are in, we can stop iterating
             break
     
     return areIn
@@ -387,7 +390,7 @@ def MultilevelFunctionForLDifferentPositions(X_0,N,T,L):
     X_0: initial positions
     N: number of steps
     T: Final time
-    L : Level to which we are interested walks on L elements of X
+    L : Level to which we are interested, the function perfoms walks only on L elements of X_0
     
     return : areIn, the vector of boolean values, areIn[l] = True means the walk on level l has reached the well
     '''
@@ -397,9 +400,11 @@ def MultilevelFunctionForLDifferentPositions(X_0,N,T,L):
     areIn = np.full(np.shape(X_0)[0], False)
     X = np.array(X_0)
 
-    for i in range(N-1):
+    for i in range(N-1):#loop for the step of the walks, they are all updated at the same time
+        #generate the random variable used for all the levels, to get correlation
         Norm = norm.rvs(size=2)
         
+        #test for each level if the position needs to be updated and if so, updates
         for l in range(L+1):
             if (not areIn[l]) :
                 X[l] = X[l] + u(X[l]) * dt + sigmaSqrtDt* Norm
@@ -407,7 +412,7 @@ def MultilevelFunctionForLDifferentPositions(X_0,N,T,L):
                 if (r < R) : areIn[l] = True
             
         finalT = finalT + dt
-        if(areIn.sum() == L+1):
+        if(areIn.sum() == L+1): #if all levels are in, we can stop iterating
             break
     
     return areIn
@@ -435,30 +440,33 @@ def MultiLevelMonteCarlo(L, X0, Walks, Functions, N, T = 1, confidence = 0.95, s
     E = np.zeros(L+1)
     VAR = np.zeros(L+1)
     
-    #stores the polluted values, L lines
+    #stores the polluted values, L lines, and every column correspond to a walk
     polluted = np.empty((L+1,Walks[0]))
     Walks.append(0)
-    for l in range(L,0,-1):
+    for l in range(L,0,-1): #will procced to the calculation level by level
         if(verbose == 2) : print('Calculating level', l)
 
-        for w in range(Walks[l+1],Walks[l]):
-            areInR = Functions(X0, N, T, l)
+        for w in range(Walks[l+1],Walks[l]): # this loops fills the columns of polluted one by one
+            areInR = Functions(X0, N, T, l)# notice the value l inside function will lead to a calculation of only l+1 values.
+            # The remaining values of areInR will be 0 and won't be used later on
             polluted[:,w] = areInR 
-        
-        E[l] = np.mean(polluted[l,0:Walks[l]] - polluted[l-1,0:Walks[l]])
+            
+        #expectation and Variance are the difference between one level and another
+        E[l] = np.mean(polluted[l,0:Walks[l]] - polluted[l-1,0:Walks[l]]) 
         VAR[l] = np.std((polluted[l,0:Walks[l]] - polluted[l-1,0:Walks[l]]), ddof = 1)
     
-    #runs the P0 walk
+    #runs the P0 walk (the last one)
     if(verbose == 2) : print('Calculating level 0')
     for w in range(Walks[1],Walks[0]):
         areInR = Functions(X0, N, T,0)
         polluted[:,w] = areInR 
-        
+    
+    #calculates different results for output
     E[0] = np.mean(polluted[0,:])
     VAR[0] = np.std(polluted[0,:], ddof=1)
     Prob = np.sum(E)
-    Var = np.sum(VAR/Walks[:-1])
-    VarNaive = np.std(polluted[L,0:Walks[L]], ddof=1)/Walks[L]
+    Var = np.sum(VAR/Walks[:L+1])
+    VarNaive = np.std(polluted[L,0:Walks[L]], ddof=1)/Walks[L] #The naive MC is determined to be the L-ieth walk
     
     end = time.time()
     
