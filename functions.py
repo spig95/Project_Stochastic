@@ -8,7 +8,7 @@ import time
 
 np.set_printoptions(precision=3) #when we print arrays
 
-def u(X) :
+def u(X):
     ''' Define the velocity field '''
     pre = q / (2*np.pi * (X[0]**2 + X[1]**2)) 
     return np.array([u1+pre*X[0],u2 + pre*X[1]])
@@ -332,10 +332,10 @@ def AntitheticVar(X0, walks, N, T = 1, confidence = 0.95, tol = 1e-6,
 
 def createVectorN(N0, NL, L):
     """
-    N0 : number of iteration for the level 0
-    NL : number of iteration for the level L, level of interest
-    L : number of Levels
-    output : N vector of size L+1 with the Nl distributed acording to MLMC paper
+    N0: number of iteration for the level 0
+    NL: number of iteration for the level L, level of interest
+    L: number of Levels
+    output: N vector of size L+1 with the Nl distributed acording to MLMC paper
     """
     #creates the vector according to the distribution
     #dtl = dt0 * M**l and N = T / dt
@@ -352,9 +352,9 @@ def MultilevelFunctionForLDifferentTimesSteps(X_0,N,T,L):
     X_0: initial position
     N: vector of the number of steps
     T: Final time
-    L : Level to which we are interested, the function perfoms walks with only L time separation of N
+    L: Level to which we are interested, the function perfoms walks with only L time separation of N
     
-    return : areIn, the vector of boolean values, areIn[l] = True means the walk on level l has reached the well'''
+    return: areIn, the vector of boolean values, areIn[l] = True means the walk on level l has reached the well'''
     
     dt = T/N
 
@@ -372,10 +372,10 @@ def MultilevelFunctionForLDifferentTimesSteps(X_0,N,T,L):
         
         #test for each level if the position needs to be updated and if so, updates
         for l in range(L+1):
-            if ((not areIn[l]) and (finalT[l] <= T)) :
+            if ((not areIn[l]) and (finalT[l] <= T)):
                 X[l] = X[l] + u(X[l]) * dt[l] + sigmaSqrtDt[l]* Norm
                 r = np.sqrt( X[l,0]**2 + X[l,1]**2 ) 
-                if (r < R) : areIn[l] = True 
+                if (r < R): areIn[l] = True 
             
         finalT = finalT + dt
         if(areIn.sum() == L+1): #if all levels are in, we can stop iterating
@@ -390,9 +390,9 @@ def MultilevelFunctionForLDifferentPositions(X_0,N,T,L):
     X_0: initial positions
     N: number of steps
     T: Final time
-    L : Level to which we are interested, the function perfoms walks only on L elements of X_0
+    L: Level to which we are interested, the function perfoms walks only on L elements of X_0
     
-    return : areIn, the vector of boolean values, areIn[l] = True means the walk on level l has reached the well
+    return: areIn, the vector of boolean values, areIn[l] = True means the walk on level l has reached the well
     '''
     dt = T/N
     sigmaSqrtDt = sigma * np.sqrt(dt)
@@ -406,10 +406,10 @@ def MultilevelFunctionForLDifferentPositions(X_0,N,T,L):
         
         #test for each level if the position needs to be updated and if so, updates
         for l in range(L+1):
-            if (not areIn[l]) :
+            if (not areIn[l]):
                 X[l] = X[l] + u(X[l]) * dt + sigmaSqrtDt* Norm
                 r = np.sqrt( X[l,0]**2 + X[l,1]**2 ) 
-                if (r < R) : areIn[l] = True
+                if (r < R): areIn[l] = True
             
         finalT = finalT + dt
         if(areIn.sum() == L+1): #if all levels are in, we can stop iterating
@@ -423,16 +423,16 @@ def MultiLevelMonteCarlo(L, X0, Walks, Functions, N, T = 1, confidence = 0.95, s
     """
     Runs a Multilevel Montecarlo, of L levels, starting at X0
     Input:
-        L : is the number of levels, where L will be the level we want to estimate with 0 being the level with smallest variance
-        Walks : is a vector of size L+1, where Walks[l] is the number of walks for the level l
+        L: is the number of levels, where L will be the level we want to estimate with 0 being the level with smallest variance
+        Walks: is a vector of size L+1, where Walks[l] is the number of walks for the level l
         X0 is a L+1 by 2 matrix storing the starting points, X[l,:] being the starting point of the l-th level
-        Functions : the function to apply for the walks, returns a l size vector
+        Functions: the function to apply for the walks, returns a l size vector
     Output: 
-        E : vector where E[l] is the expectation of the l-ieth level
-        VAR : vector where VAR[l] is the variance of the estimator of the l-ieth level, 
-        Var : is the variance of the MLMC estimator, 
-        Prob : is the estimator/probability computed by the MLMC  , 
-        VarNaive : is the variance that would be achieved for a naive walk
+        E: vector where E[l] is the expectation of the l-ieth level
+        VAR: vector where VAR[l] is the variance of the estimator of the l-ieth level, 
+        Var: is the variance of the MLMC estimator, 
+        Prob: is the estimator/probability computed by the MLMC  , 
+        VarNaive: is the variance that would be achieved for a naive walk
     """
     start = time.time()
     
@@ -444,7 +444,7 @@ def MultiLevelMonteCarlo(L, X0, Walks, Functions, N, T = 1, confidence = 0.95, s
     polluted = np.empty((L+1,Walks[0]))
     Walks.append(0)
     for l in range(L,0,-1): #will procced to the calculation level by level
-        if(verbose == 2) : print('Calculating level', l)
+        if(verbose == 2): print('Calculating level', l)
 
         for w in range(Walks[l+1],Walks[l]): # this loops fills the columns of polluted one by one
             areInR = Functions(X0, N, T, l)# notice the value l inside function will lead to a calculation of only l+1 values.
@@ -456,7 +456,7 @@ def MultiLevelMonteCarlo(L, X0, Walks, Functions, N, T = 1, confidence = 0.95, s
         VAR[l] = np.std((polluted[l,0:Walks[l]] - polluted[l-1,0:Walks[l]]), ddof = 1)
     
     #runs the P0 walk (the last one)
-    if(verbose == 2) : print('Calculating level 0')
+    if(verbose == 2): print('Calculating level 0')
     for w in range(Walks[1],Walks[0]):
         areInR = Functions(X0, N, T,0)
         polluted[:,w] = areInR 
@@ -474,8 +474,8 @@ def MultiLevelMonteCarlo(L, X0, Walks, Functions, N, T = 1, confidence = 0.95, s
         print(f'\nNumber of simulations: %d. Time needed = %.2f s' % 
                 (np.sum(Walks), end-start))
         print(f'The estimated probability at {X0} is: {Prob} (using MLMC)')
-        print('with the variance : ', Var)
-        print('Whithout the variance reduction ', VarNaive)
+        print('With the variance reduction:    ', Var)
+        print('Whithout the variance reduction:', VarNaive)
         if PDEProb != -1:
             print(f'\nPDE result at {X0} is:  {PDEProb}')
             
@@ -691,7 +691,7 @@ def SplittingMethodBalancedGrowth(X0, dt, Rs, Ns, T = 1, multiplier = 2,
         print(f'Pilot run results: \n\tH = {H}\n\tp_i = {p} \n\tN = {Ns}')
 
     if multiplier !=1:
-        if verbose >=1 :
+        if verbose >=1:
             Ns = Ns*multiplier
             print(f'\nChanging the values multiplying by {multiplier}.')
             print(f'New N = {Ns}.')
