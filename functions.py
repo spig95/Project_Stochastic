@@ -101,7 +101,7 @@ def BasicMonteCarlo(X0, walks, N, T = 1, confidence = 0.95, tol = 1e-6,
         print(f'Estimated variance: {std}' % (std))
         print(f'The estimated probability at {X0} is: {mean} (using MC)')
         print(f'Confidence interval: [ {mean} +- {UB-mean} ]\twith'
-               ' P = {confidence}%')
+              f' P = {confidence}%')
         if PDEProb != -1:
             print(f'\nPDE result at {X0} is:  {PDEProb}')
     return mean, std, LB, UB
@@ -141,7 +141,7 @@ def MCWithPilotRun(X0, walks_pilot, N, precision, T = 1, confidence = 0.95,
         print(f'Estimated variance: {std}' % (std))
         print(f'The estimated probability at {X0} is: {mean} (using MC)')
         print(f'Confidence interval: [ {mean} +- {UB-mean} ]\twith'
-               ' P = {confidence}%')
+              f' P = {confidence}%')
         if PDEProb != -1:
             print(f'\nPDE result at {X0} is:  {PDEProb}')
 
@@ -323,7 +323,7 @@ def AntitheticVar(X0, walks, N, T = 1, confidence = 0.95, tol = 1e-6,
         print(f'Estimated variance: {std}' % (std))
         print(f'The estimated probability at {X0} is: {mean} (using MC)')
         print(f'Confidence interval: [ {mean} +- {UB-mean} ]\twith'
-               ' P = {confidence}%')
+              f' P = {confidence}%')
         if PDEProb != -1:
             print(f'\nPDE result at {X0} is:  {PDEProb}')
     return mean, std, LB, UB
