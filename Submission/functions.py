@@ -401,7 +401,7 @@ def MultilevelFunctionForLDifferentTimesSteps(X_0,N,T,L):
     X_0: initial position
     N: vector of the number of steps
     T: final time
-    L: level to which we are interested
+    L: level to which the function goes
     
     #OUTPUT:
     areIn: vector of boolean values. areIn[l] = True means the walk on level l 
@@ -444,7 +444,7 @@ def MultilevelFunctionForLDifferentPositions(X_0,N,T,L):
     X_0: initial positions
     N: number of steps
     T: Final time
-    L: Level to which we are interested
+    L: Level to which to which the function goes
     
     #OUTPUT:
     areIn: vector of boolean values. areIn[l] = True means the walk on level l 
