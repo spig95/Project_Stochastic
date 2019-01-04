@@ -476,8 +476,8 @@ def MultilevelFunctionForLDifferentPositions(X_0,N,T,L):
     return areIn
 
 
-def MultiLevelMonteCarlo(L, X0, Walks, Functions, N, T = 1, confidence = 0.95,
-                               seed = 1, tol = 1e-6, PDEProb = -1, verbose = 1):
+def MultiLevelMonteCarlo(L, X0, Walks, Functions, N, T = 1,  seed = 1, 
+                                                     PDEProb = -1, verbose = 1):
     '''
     Runs a Multilevel Montecarlo, of L levels, starting at X0. It can be applied
     for both MLMC with different time steps or MLMC with different positions.
@@ -503,6 +503,9 @@ def MultiLevelMonteCarlo(L, X0, Walks, Functions, N, T = 1, confidence = 0.95,
     Prob: estimator/probability computed by the MLMC
     VarNaive: variance that would be achieved for a naive walk at level L
     '''
+    # Seed
+    np.random.seed(seed)
+
     start = time.time()
     
     # Expectation of each level E[l] = E[Pl-P(l-1)] and E[0] = E[P0]
