@@ -9,7 +9,8 @@ import time
 np.set_printoptions(precision=3) #when we print arrays
 
 def u(X):
-    ''' Define the velocity field '''
+    ''' Define the velocity field 
+    '''
     pre = q / (2*np.pi * (X[0]**2 + X[1]**2)) 
     return np.array([u1+pre*X[0],u2 + pre*X[1]])
 
@@ -28,11 +29,11 @@ def CI(mean, std, N, confidence):
 
 def NaiveRandomWalk(X0, N, T):
     ''' Simulate a random walk starting from X0. The simulation terminates if we
-    are inside the well or if T has elapsed.
+    are inside the well or if time T has elapsed.
 
     #ARGUMENTS:
     X0: initial position
-    N: number of steps
+    N: number of steps (dt = T/N)
     T: maximum time of the walk
     
     #OUTPUT:
@@ -63,10 +64,10 @@ def BasicMonteCarlo(X0, walks, N, T = 1, confidence = 0.95, tol = 1e-6,
     #ARGUMENTS: 
     X0: initial position
     walks: number of walks to simulate
-    N: number of steps per walk
+    N: number of steps (dt = T/N) per walk
     T: final time
     confidence: confidence interval with this confidence level will be computed
-    tol: we consider that the walk didn't go inside the well if the time at the 
+    tol: we consider that the walk did not go inside the well if the time at the 
          Nth step is smaller than T-tol. This prevents errors due to numerical
          approximations
     PDEProb: PDE solution value at X0. -1 if not available
@@ -155,21 +156,31 @@ def MCWithPilotRun(X0, walks_pilot, N, precision, T = 1, confidence = 0.95,
 
 def deltaTBoundOrder1(X):
     ''' Computes the bound of deltaT if we want to have an expected step 
-        magnitude such that with one step we don't skip the whole well
-        X: current position
-    '''
-    r = np.sqrt(X[0]**2 + X[1]**2) #Current distance from the origin
+    magnitude such that with one step we do not skip the whole well.
     
-    return (R-r)**2 / (2* sigma**2)
+    #ARGUMENTS: 
+    X: current position
+
+    #OUTPUT:
+    bound: bound of deltaT
+    '''
+    r = np.sqrt(X[0]**2 + X[1]**2) # Current distance from the origin
+    bound = (R-r)**2 / (2* sigma**2)
+    return bound
 
 def deltaTBoundOrder2(X):
     ''' Computes the bound of deltaT if we want to have an expected step 
-        magnitude such that with one step we don't skip the whole well
-        X: current position
-    '''
-    r = np.sqrt(X[0]**2 + X[1]**2) #Current distance from the origin
+    magnitude such that with one step we do not skip the whole well.
+    
+    #ARGUMENTS: 
+    X: current position
 
-    U = u(X) #Velocity field at this position
+    #OUTPUT:
+    bound: bound of deltaT
+    '''
+    r = np.sqrt(X[0]**2 + X[1]**2) # Current distance from the origin
+
+    U = u(X) # Velocity field at this position
 
     delta = sigma**4 + (U[0]**2 + U[1]**2 + 4 * sigma**4) * (R-r)**2
     bound = (-sigma**2 + np.sqrt(delta) )/(U[0]**2 + U[1]**2 + 4*sigma**4)
@@ -179,21 +190,30 @@ def deltaTBoundOrder2(X):
 
 def RandomWalkAdaptiveTimeStep(X0, deltaT = deltaTBoundOrder1, T = 1, 
                                        mindt = 0.0001, maxdt = 0.05, coeff=0.5):
-    ''' Generate random walk using adaptive time step given by the function deltaTBound.
-        The coefficient allows to be more/less conservative wrt the given bound on dt.
-        The given dt will be clipped at a maximum value given by the thresholds min/max dt
-        
-        X0: initial position
-        T: time limit
+    ''' Generate random walk using adaptive time step given by the function 
+    deltaTBound. 
+    
+    The coefficient allows to be more/less conservative wrt the 
+    given bound on dt. The given dt will be clipped at a maximum value given by 
+    the thresholds min/max dt
+
+    #ARGUMENTS:
+    X0: initial position
+    deltaT: function of X that computes the deltaT 
+    T: final time
+    mindt: minimum value for clipping (when we are near the well)
+    maxdt: maximum value for clipping (when we are far from the well)
+    coeff: multiply the given deltaT for this coefficient
+
+    #OUTPUT:
+    X: the walk
+    (boolean): True if the particle has polluted the well
     '''
     X = []
     X.append(X0)
     
     finalT = 0
-    dt = 0 #initialize to 0
-    
-    # control on the iterations
-    iters = 0
+    dt = 0 #Initialize to 0
     
     while(finalT <= T):
         X0 = X0 + u(X0) * dt + sigma * np.sqrt(dt) * norm.rvs(size=2)
@@ -203,7 +223,7 @@ def RandomWalkAdaptiveTimeStep(X0, deltaT = deltaTBoundOrder1, T = 1,
         dt = np.clip( coeff * deltaT(X0), mindt, maxdt)
         finalT = finalT + dt
 
-        # if we are inside the well
+        # If we are inside the well
         if(r<R):
             return np.asarray(X), True
             
@@ -211,11 +231,30 @@ def RandomWalkAdaptiveTimeStep(X0, deltaT = deltaTBoundOrder1, T = 1,
     return np.asarray(X), False
 
 
-def AdaptiveTimeStepMonteCarlo(X0, walks, deltaT = deltaTBoundOrder1, T = 1, confidence = 0.95, seed = 1,
-                               mindt = 0.0001, maxdt = 0.05, coeff=0.5, 
-                               PDEProb = -1, verbose = 1):
-    
+def AdaptiveTimeStepMonteCarlo(X0, walks, deltaT = deltaTBoundOrder1, T = 1, 
+                      confidence = 0.95, seed = 1, mindt = 0.0001, maxdt = 0.05,  
+                                          coeff=0.5, PDEProb = -1, verbose = 1):
+    '''Monte Carlo using adaptive time step.
+
+    #ARGUMENTS: 
+    X0: initial position
+    walks: number of walks to simulate
+    deltaT: function of X that computes the deltaT 
+    T: final time
+    confidence: confidence interval with this confidence level will be computed
+    mindt: minimum value for clipping (when we are near the well)
+    maxdt: maximum value for clipping (when we are far from the well)
+    coeff: multiply the given deltaT for this coefficient
+    PDEProb: PDE solution value at X0. -1 if not available
+
+    #OUTPUT:
+    mean: estimated prob
+    std: estimated variance
+    LB, UB: confidence interval 
+    '''
+    # Seed
     np.random.seed(seed)
+    # Initialize to 0 the outcomes of the walks
     polluted = np.zeros(walks)
 
 
@@ -223,8 +262,8 @@ def AdaptiveTimeStepMonteCarlo(X0, walks, deltaT = deltaTBoundOrder1, T = 1, con
     for w in range(walks):
         if (verbose == 2 and w%100 == 0):
             print('Current walk: ', w )
-        _, isIn = RandomWalkAdaptiveTimeStep(X0, deltaT = deltaT, T = T, mindt = mindt, 
-                                                maxdt = maxdt, coeff = coeff)
+        _, isIn = RandomWalkAdaptiveTimeStep(X0, deltaT = deltaT, T = T, 
+                                    mindt = mindt, maxdt = maxdt, coeff = coeff)
         if isIn: polluted[w] = 1
     end = time.time()
 
@@ -232,10 +271,12 @@ def AdaptiveTimeStepMonteCarlo(X0, walks, deltaT = deltaTBoundOrder1, T = 1, con
     std = np.std(polluted, ddof = 1)
     LB, UB = CI(mean, std, walks, confidence)
     if verbose >= 1:
-        print(f'\nNumber of simulations: %d. Time needed = %.2f s' % (walks, end-start))
+        print(f'\nNumber of simulations: %d. Time needed = %.2f s' 
+              % (walks, end-start))
         print(f'Estimated variance: {std}')
         print(f'The estimated probability at {X0} is: {mean} (using MC)')
-        print(f'Confidence interval: [ {mean} +- {UB-mean} ]\twith P = {confidence}%')
+        print(f'Confidence interval: [ {mean} +- {UB-mean} ]\twith P = '
+              f'{confidence}%')
         if PDEProb != -1:
             print(f'\nPDE result at {X0} is:  {PDEProb}')
 
@@ -255,10 +296,10 @@ def AntitheticVar(X0, walks, N, T = 1, confidence = 0.95, tol = 1e-6,
     #ARGUMENTS: 
     X0: initial position
     walks: number of walks to simulate
-    N: number of steps per walk
+    N: number of steps (dt = T/N) per walk
     T: final time
     confidence: confidence interval with this confidence level will be computed
-    tol: we consider that the walk didn't go inside the well if the time at the 
+    tol: we consider that the walk did not go inside the well if the time at the 
          Nth step is smaller than T-tol. This prevents errors due to numerical
          approximations
     PDEProb: PDE solution value at X0. -1 if not available
@@ -266,7 +307,8 @@ def AntitheticVar(X0, walks, N, T = 1, confidence = 0.95, tol = 1e-6,
     #OUTPUT:
     mean: estimated prob
     std: estimated variance
-    LB, UB: confidence interval '''
+    LB, UB: confidence interval 
+    '''
     # Select an even number of walks
     walks = walks + walks % 2
     # Seed
@@ -331,46 +373,57 @@ def AntitheticVar(X0, walks, N, T = 1, confidence = 0.95, tol = 1e-6,
 
 
 def createVectorN(N0, NL, L):
-    """
-    N0: number of iteration for the level 0
-    NL: number of iteration for the level L, level of interest
+    '''Create the number of steps for one walk in each of the levels L, when 
+    using the MLMC based on different time steps.
+    
+    #ARGUMENTS: 
+    N0: number of steps (dt = T/N) for the level 0
+    NL: number of steps (dt = T/N) for the level L, level of interest
     L: number of Levels
-    output: N vector of size L+1 with the Nl distributed acording to MLMC paper
-    """
-    #creates the vector according to the distribution
+
+    #OUTPUT:
+    N: vector of size L+1 with the Nl distributed acording to MLMC paper
+    '''
     #dtl = dt0 * M**l and N = T / dt
     #N0/Nl = M**l
     M = (N0/NL) ** (1/L)
     #Nl = N0/(M**l)
-    return np.array([ round(N0 / (M**l)) for l in range(L+1)],dtype=int) 
+
+    N = np.array([ round(N0 / (M**l)) for l in range(L+1)],dtype=int) 
+    return N
 
 
 
 def MultilevelFunctionForLDifferentTimesSteps(X_0,N,T,L):
-    ''' 
-    Function that computes walk with different timesteps
+    ''' Function that computes walks with different time steps
+
+    #ARGUMENTS: 
     X_0: initial position
     N: vector of the number of steps
-    T: Final time
-    L: Level to which we are interested, the function perfoms walks with only L time separation of N
+    T: final time
+    L: level to which we are interested
     
-    return: areIn, the vector of boolean values, areIn[l] = True means the walk on level l has reached the well'''
+    #OUTPUT:
+    areIn: vector of boolean values. areIn[l] = True means the walk on level l 
+        has reached the well
+    '''
     
-    dt = T/N
+    dt = T/N # L size array
 
     sigmaSqrtDt = sigma * np.sqrt(dt)
 
-    finalT = dt #finalT is a L size vector that store the time at which each level is
+    finalT = dt # L size array that stores the time at which each level is
     areIn = np.full(len(N), False)
 
-    X = np.outer(X_0,np.ones(L+1)).T #stores the position of each level
+    X = np.outer(X_0,np.ones(L+1)).T # Stores the position of each level
 
-
-    for i in range(N[L]-1):#loop for the step of the walks, they are all updated at the same time (we use smallest timestep
-        #generate the random variable used for all the levels, to get correlation
+    # Loop for the step of the walks, they are all updated at the same time
+    for _ in range(N[L]-1):        
+        # Generate the random variable used for all the levels, to get
+        # correlation
         Norm = norm.rvs(size=2)
         
-        #test for each level if the position needs to be updated and if so, updates
+        # Test for each level if the position needs to be updated 
         for l in range(L+1):
             if ((not areIn[l]) and (finalT[l] <= T)):
                 X[l] = X[l] + u(X[l]) * dt[l] + sigmaSqrtDt[l]* Norm
@@ -378,21 +431,24 @@ def MultilevelFunctionForLDifferentTimesSteps(X_0,N,T,L):
                 if (r < R): areIn[l] = True 
             
         finalT = finalT + dt
-        if(areIn.sum() == L+1): #if all levels are in, we can stop iterating
+        if(areIn.sum() == L+1): # If all levels are in, we can stop iterating
             break
     
     return areIn
 
 
 def MultilevelFunctionForLDifferentPositions(X_0,N,T,L):
-    ''' 
-    Function that computes walk with different starting positions
+    ''' Function that computes walk with different starting positions
+    
+    #ARGUMENTS: 
     X_0: initial positions
     N: number of steps
     T: Final time
-    L: Level to which we are interested, the function perfoms walks only on L elements of X_0
+    L: Level to which we are interested
     
-    return: areIn, the vector of boolean values, areIn[l] = True means the walk on level l has reached the well
+    #OUTPUT:
+    areIn: vector of boolean values. areIn[l] = True means the walk on level l 
+        has reached the well
     '''
     dt = T/N
     sigmaSqrtDt = sigma * np.sqrt(dt)
@@ -400,11 +456,13 @@ def MultilevelFunctionForLDifferentPositions(X_0,N,T,L):
     areIn = np.full(np.shape(X_0)[0], False)
     X = np.array(X_0)
 
-    for i in range(N-1):#loop for the step of the walks, they are all updated at the same time
-        #generate the random variable used for all the levels, to get correlation
+    #Loop for the step of the walks, they are all updated at the same time
+    for i in range(N-1):
+        # Generate the random variable used for all the levels, to get
+        # correlation
         Norm = norm.rvs(size=2)
         
-        #test for each level if the position needs to be updated and if so, updates
+        # Test for each level if the position needs to be updated
         for l in range(L+1):
             if (not areIn[l]):
                 X[l] = X[l] + u(X[l]) * dt + sigmaSqrtDt* Norm
@@ -412,48 +470,66 @@ def MultilevelFunctionForLDifferentPositions(X_0,N,T,L):
                 if (r < R): areIn[l] = True
             
         finalT = finalT + dt
-        if(areIn.sum() == L+1): #if all levels are in, we can stop iterating
+        if(areIn.sum() == L+1): # If all levels are in, we can stop iterating
             break
     
     return areIn
 
 
-def MultiLevelMonteCarlo(L, X0, Walks, Functions, N, T = 1, confidence = 0.95, seed = 1, tol = 1e-6,
-                    PDEProb = -1, verbose = 1):
-    """
-    Runs a Multilevel Montecarlo, of L levels, starting at X0
-    Input:
-        L: is the number of levels, where L will be the level we want to estimate with 0 being the level with smallest variance
-        Walks: is a vector of size L+1, where Walks[l] is the number of walks for the level l
-        X0 is a L+1 by 2 matrix storing the starting points, X[l,:] being the starting point of the l-th level
-        Functions: the function to apply for the walks, returns a l size vector
-    Output: 
-        E: vector where E[l] is the expectation of the l-ieth level
-        VAR: vector where VAR[l] is the variance of the estimator of the l-ieth level, 
-        Var: is the variance of the MLMC estimator, 
-        Prob: is the estimator/probability computed by the MLMC  , 
-        VarNaive: is the variance that would be achieved for a naive walk
-    """
+def MultiLevelMonteCarlo(L, X0, Walks, Functions, N, T = 1, confidence = 0.95,
+                               seed = 1, tol = 1e-6, PDEProb = -1, verbose = 1):
+    '''
+    Runs a Multilevel Montecarlo, of L levels, starting at X0. It can be applied
+    for both MLMC with different time steps or MLMC with different positions.
+
+    #ARGUMENTS:
+    L: number of levels, where L will be the level we want to estimate with 0 
+        being the level with smallest variance
+    X0: (L+1, 2) matrix storing the starting points. X[l,:] being the starting 
+        point of the l-th level
+    Walks: is a vector of size L+1, Walks[l] is the number of walks for the 
+        level l
+    Functions: the function to apply for the walks, returns a l size vector. 
+        This allows to choose between MLMC with different time step or MLMC with
+        different positions 
+    N: number of steps of all the levels if MLMC with different positions is 
+      used. Array containing the number of steps for each level if MLMC with 
+      different time steps is used (cfr. createVectorN(N0, NL, L))
+    
+    #OUTPUT:
+    E: stores the expectation of each level E[l] = E[Pl-P(l-1)] and E[0] = E[P0]
+    VAR: vector where VAR[l] is the variance of the estimator of the l-th level 
+    Var: variance of the MLMC estimator
+    Prob: estimator/probability computed by the MLMC
+    VarNaive: variance that would be achieved for a naive walk at level L
+    '''
     start = time.time()
     
-    #E stores the expectation of each level E[l] = E[Pl-P(l-1)] and E[0] = E[P0]
+    # Expectation of each level E[l] = E[Pl-P(l-1)] and E[0] = E[P0]
     E = np.zeros(L+1)
+    # Variance of each level
     VAR = np.zeros(L+1)
     
-    #stores the polluted values, L lines, and every column correspond to a walk
+    # Stores the polluted values, L lines, and every column correspond to a walk
     polluted = np.empty((L+1,Walks[0]))
     Walks.append(0)
-    for l in range(L,0,-1): #will procced to the calculation level by level
+    for l in range(L,0,-1): # Proceed to the calculation level by level
         if(verbose == 2): print('Calculating level', l)
-
-        for w in range(Walks[l+1],Walks[l]): # this loops fills the columns of polluted one by one
-            areInR = Functions(X0, N, T, l)# notice the value l inside function will lead to a calculation of only l+1 values.
-            # The remaining values of areInR will be 0 and won't be used later on
+        
+        # This loops fills the columns of polluted one by one
+        for w in range(Walks[l+1],Walks[l]):
+            # Notice the value l inside function will lead to a calculation of 
+            # only l+1 values.
+            areInR = Functions(X0, N, T, l)
+            # The remaining values of areInR will be 0 and will not be used 
+            # later on
             polluted[:,w] = areInR 
             
-        #expectation and Variance are the difference between one level and another
+        # Expectation and variance are the difference between one level and 
+        # another
         E[l] = np.mean(polluted[l,0:Walks[l]] - polluted[l-1,0:Walks[l]]) 
-        VAR[l] = np.std((polluted[l,0:Walks[l]] - polluted[l-1,0:Walks[l]]), ddof = 1)
+        VAR[l] = np.std((polluted[l,0:Walks[l]] - polluted[l-1,0:Walks[l]]), 
+                         ddof = 1)
     
     #runs the P0 walk (the last one)
     if(verbose == 2): print('Calculating level 0')
@@ -466,7 +542,8 @@ def MultiLevelMonteCarlo(L, X0, Walks, Functions, N, T = 1, confidence = 0.95, s
     VAR[0] = np.std(polluted[0,:], ddof=1)
     Prob = np.sum(E)
     Var = np.sum(VAR/Walks[:L+1])
-    VarNaive = np.std(polluted[L,0:Walks[L]], ddof=1)/Walks[L] #The naive MC is determined to be the L-ieth walk
+    # The naive MC variance is the variance of the L-th walk
+    VarNaive = np.std(polluted[L,0:Walks[L]], ddof=1)/Walks[L] 
     
     end = time.time()
     
@@ -496,7 +573,7 @@ def StageWalk(X0, R_in, R_f, T_in, dt, T = 1):
     R_in: X0 belongs to a circle of radius R_in
     R_f: ends if we go a circle of radius R_f (i.e in the next stage)
     T_in: starting time of the walk
-    dt: timestep
+    dt: time step
     T: final time, another stopping criteria for the walk
 
     #OUTPUT:
@@ -584,7 +661,7 @@ def SplittingMethod(X0, T0, dt, Ns, Rs, Y, H, stage, root, T = 1, verbose = 1,
         if verbose >= 1:
             print(f'Radiuses: {Rs}')
             print(f'Walks per stage: {Ns}')
-            print(f'Timestep: {dt}')
+            print(f'Time step: {dt}')
             fig, ax = plt.subplots(figsize = [4,4])
             for radius in Rs[:-1]:
                 theta = np.linspace(0,2*np.pi,100)
@@ -615,7 +692,7 @@ def SplittingMethod(X0, T0, dt, Ns, Rs, Y, H, stage, root, T = 1, verbose = 1,
 
 
     ############################################################################
-    # Intermediate stage, same as before, but we don't have to change the root
+    # Intermediate stage, same as before, but we do not have to change the root
     # when we call the next instance of SplittingMethod, since the roots are 
     # defined only in the first stage        
     elif stage != Ns.shape[0]-1:
@@ -629,7 +706,7 @@ def SplittingMethod(X0, T0, dt, Ns, Rs, Y, H, stage, root, T = 1, verbose = 1,
 
 
     ############################################################################
-    # Final stage. We don't call again the SplittingMethod, but we update the 
+    # Final stage. We do not call again the SplittingMethod, but we update the 
     # values of Y[root]            
     else:
         for i in range(int(Ns[stage])):
@@ -648,7 +725,7 @@ def SplittingMethodBalancedGrowth(X0, dt, Rs, Ns, T = 1, multiplier = 2,
     if verbose >= 1:
         print('Splitting method with balanced growth.\n')
         print(f'Radiuses: {Rs}')
-        print(f'Timestep: {dt}')
+        print(f'Time step: {dt}')
         _, ax = plt.subplots(figsize = [4,4])
         for radius in Rs[:-1]:
             theta = np.linspace(0,2*np.pi,100)
