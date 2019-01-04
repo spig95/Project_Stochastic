@@ -384,12 +384,12 @@ def createVectorN(N0, NL, L):
     #OUTPUT:
     N: vector of size L+1 with the Nl distributed acording to MLMC paper
     '''
-    #dtl = dt0 * M**l and N = T / dt
-    #N0/Nl = M**l
-    M = (N0/NL) ** (1/L)
-    #Nl = N0/(M**l)
+    #dtl = dt0 * m**l and N = T / dt
+    #N0/Nl = m**l
+    m = (N0/NL) ** (1/L)
+    #Nl = N0/(m**l)
 
-    N = np.array([ round(N0 / (M**l)) for l in range(L+1)],dtype=int) 
+    N = np.array([ round(N0 / (m**l)) for l in range(L+1)],dtype=int) 
     return N
 
 
